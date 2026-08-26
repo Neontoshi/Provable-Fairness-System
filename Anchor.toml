@@ -1,0 +1,23 @@
+# Anchor.toml
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+provable_fairness = "EGJ9Y7baCg7MrPatH8myHmmKWqFHDPMeFCSUw9vwdnr3"
+
+[programs.localnet]
+provable_fairness = "EGJ9Y7baCg7MrPatH8myHmmKWqFHDPMeFCSUw9vwdnr3"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
+members = ["."]
+
+[registry]
+url = "https://api.apr.dev"
+
+[scripts]
+test = "anchor test"
