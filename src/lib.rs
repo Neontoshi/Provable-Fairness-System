@@ -32,9 +32,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::system_program as system_program_id;
 
-// ============================================================================
 // CONSTANTS
-// ============================================================================
 
 /// Number of slots to wait between commit and reveal.
 /// ~60 seconds on Solana mainnet (400ms per slot).
@@ -69,10 +67,6 @@ pub const SLOT_HASHES_ID: Pubkey = pubkey!("SysvarS1otHashes11111111111111111111
 /// Instructions sysvar address.
 pub const INSTRUCTIONS_SYSVAR_ID: Pubkey = pubkey!("Sysvar1nstructions1111111111111111111111111");
 
-// ============================================================================
-// SHARED UTILITIES (available to both on-chain and off-chain)
-// ============================================================================
-
 /// Maximum number of winners to display in the reveal event.
 pub const MAX_DISPLAYED_WINNERS: usize = 6;
 
@@ -82,17 +76,6 @@ pub fn display_count(winner_count: u64) -> usize {
 }
 
 /// Find a slot hash in the slot hashes sysvar data.
-///
-/// The slot hashes sysvar stores recent slot hashes in a circular buffer.
-/// This function searches for a specific slot and returns its hash.
-///
-/// # Arguments
-/// * `data` - Raw slot hashes sysvar data
-/// * `target_slot` - The slot to find
-///
-/// # Returns
-/// * `Some([u8; 32])` - The hash of the target slot
-/// * `None` - Slot not found (may have expired)
 pub fn find_slot_hash(data: &[u8], target_slot: u64) -> Option<[u8; 32]> {
     const HEADER_SIZE: usize = 8;
     const ENTRY_SIZE: usize = 40;
@@ -120,14 +103,6 @@ pub fn find_slot_hash(data: &[u8], target_slot: u64) -> Option<[u8; 32]> {
 }
 
 /// Derive randomness from a slot hash and participant root.
-///
-/// The randomness is the Keccak-256 hash of the concatenation of:
-/// `slot_hash || participant_root`
-///
-/// This ensures that the randomness is:
-/// 1. Unpredictable (slot hash is unknown until after commit)
-/// 2. Tied to the participant list (can't be reused)
-/// 3. Deterministic (anyone can verify)
 pub fn derive_randomness(target_hash: &[u8; 32], participant_root: &[u8; 32]) -> [u8; 32] {
     let mut combined_seed = [0u8; 64];
     combined_seed[..32].copy_from_slice(target_hash);
@@ -135,22 +110,6 @@ pub fn derive_randomness(target_hash: &[u8; 32], participant_root: &[u8; 32]) ->
     solana_keccak_hasher::hash(&combined_seed).to_bytes()
 }
 
-/// Select winner indices using the Fisher-Yates algorithm with a deterministic
-/// random seed.
-///
-/// This produces a random permutation of indices from 0 to `participant_count - 1`,
-/// then returns the first `winner_count` indices.
-///
-/// The algorithm is deterministic given the same randomness seed, making it
-/// verifiable by anyone.
-///
-/// # Arguments
-/// * `randomness` - The 32-byte random seed
-/// * `participant_count` - Total number of participants
-/// * `winner_count` - Number of winners to select
-///
-/// # Returns
-/// * `Vec<u64>` - The indices of the selected winners
 pub fn select_winner_indices(
     randomness: &[u8; 32],
     participant_count: u64,
@@ -195,16 +154,6 @@ fn virtual_get(overrides: &[(u64, u64)], i: u64) -> u64 {
     i
 }
 
-/// Calculate the platform fee for a giveaway.
-///
-/// The fee is calculated as 5,000 lamports per participant,
-/// clamped between 50,000 and 500,000,000 lamports.
-///
-/// # Arguments
-/// * `participant_count` - Number of participants
-///
-/// # Returns
-/// * `u64` - The platform fee in lamports
 pub fn calculate_platform_fee(participant_count: u64) -> u64 {
     let fee_per_participant: u64 = 5_000;
     let fee = participant_count * fee_per_participant;
@@ -213,9 +162,7 @@ pub fn calculate_platform_fee(participant_count: u64) -> u64 {
     fee.clamp(min_fee, max_fee)
 }
 
-// ============================================================================
 // ANCHOR PROGRAM
-// ============================================================================
 
 declare_id!("EGJ9Y7baCg7MrPatH8myHmmKWqFHDPMeFCSUw9vwdnr3");
 
@@ -234,9 +181,7 @@ pub struct WinnersRevealed {
     pub winner_indices: Vec<u64>,
 }
 
-// ============================================================================
 // ACCOUNT STRUCTURES
-// ============================================================================
 
 /// UserState tracks a user's account count.
 #[account]
@@ -265,10 +210,6 @@ pub struct GiveawayData {
     pub reveal_slot: u64,
     pub winner_root: [u8; 32],
 }
-
-// ============================================================================
-// INSTRUCTION SERIALIZATION HELPERS
-// ============================================================================
 
 /// Raw instruction data for fee verification.
 struct RawInstruction {
@@ -395,23 +336,17 @@ fn verify_fee_transfer(
     );
 
     let (to_pubkey, _) = prev_ix.accounts[1];
-    // The treasury address should be verified via the account constraint
-    // in the instruction context.
 
     Ok(())
 }
 
-// ============================================================================
 // PROGRAM INSTRUCTIONS
-// ============================================================================
 
 #[program]
 pub mod provable_fairness {
     use super::*;
 
     /// Initialize a new user state account.
-    ///
-    /// This must be called before any other user operations.
     pub fn initialize_user(ctx: Context<InitializeUser>) -> Result<()> {
         let user_state = &mut ctx.accounts.user_state;
         user_state.authority = ctx.accounts.authority.key();
@@ -422,9 +357,6 @@ pub mod provable_fairness {
     }
 
     /// Create a new user giveaway account.
-    ///
-    /// Each user can have multiple accounts to manage rent costs.
-    /// Each account can hold up to 10,000 giveaways.
     pub fn create_user_account(ctx: Context<CreateUserAccount>) -> Result<()> {
         let user_state = &mut ctx.accounts.user_state;
         let user_account = &mut ctx.accounts.user_giveaways;
@@ -446,9 +378,6 @@ pub mod provable_fairness {
     }
 
     /// Create a new giveaway (state = created).
-    ///
-    /// This is the first step of the commit-reveal protocol.
-    /// The participant Merkle root is stored on-chain.
     pub fn create_giveaway(
         ctx: Context<CreateGiveaway>,
         account_index: u64,
@@ -475,10 +404,6 @@ pub mod provable_fairness {
     }
 
     /// Create and commit a giveaway in a single transaction.
-    ///
-    /// This combines `create_giveaway` and `commit_draw` into one instruction,
-    /// saving a transaction for the user. The keeper worker will handle the
-    /// reveal automatically.
     pub fn create_and_commit_giveaway(
         ctx: Context<CreateAndCommitGiveaway>,
         account_index: u64,
@@ -500,17 +425,13 @@ pub mod provable_fairness {
             participant_count,
             winner_count,
             platform_fee,
-            1, // state: committed
+            1,
             current_slot,
             current_slot + REVEAL_DELAY_SLOTS,
         )
     }
 
     /// Commit a draw (state: created -> committed).
-    ///
-    /// Records the current slot and sets the reveal slot.
-    /// After this, the draw is "locked in" and will be revealed after
-    /// `REVEAL_DELAY_SLOTS` slots.
     pub fn commit_draw(
         ctx: Context<CommitDraw>,
         account_index: u64,
@@ -549,10 +470,6 @@ pub mod provable_fairness {
     }
 
     /// Reveal winners (state: committed -> drawn).
-    ///
-    /// This is the final step of the commit-reveal protocol.
-    /// The randomness is derived from the slot hash at the commit slot.
-    /// Winners are selected deterministically and recorded on-chain.
     ///
     /// # Security Properties
     /// 1. **Unpredictable**: The slot hash at the commit slot cannot be known
@@ -646,8 +563,6 @@ pub mod provable_fairness {
     }
 
     /// Cancel a giveaway (state: created or committed -> cancelled).
-    ///
-    /// Only works if the giveaway hasn't been drawn yet.
     pub fn cancel_giveaway(
         ctx: Context<CancelGiveaway>,
         account_index: u64,
@@ -674,9 +589,6 @@ pub mod provable_fairness {
     }
 
     /// Close a user account and reclaim rent.
-    ///
-    /// Only works if all giveaways in the account are terminal
-    /// (drawn or cancelled).
     pub fn close_user_account(ctx: Context<CloseUserAccount>, account_index: u64) -> Result<()> {
         let user_account = &ctx.accounts.user_giveaways;
 
@@ -746,10 +658,7 @@ pub mod provable_fairness {
     }
 }
 
-// ============================================================================
 // ACCOUNT CONTEXT STRUCTURES
-// ============================================================================
-
 #[derive(Accounts)]
 pub struct InitializeUser<'info> {
     #[account(
@@ -950,13 +859,7 @@ pub struct GetGiveaway<'info> {
     pub authority: Signer<'info>,
 }
 
-// ============================================================================
 // CORE GIVEAWAY CREATION LOGIC
-// ============================================================================
-
-/// Core logic for creating a giveaway.
-///
-/// This is shared between `create_giveaway` and `create_and_commit_giveaway`.
 fn create_giveaway_core(
     user_account: &mut Account<UserGiveaways>,
     authority: &Pubkey,
@@ -1020,10 +923,6 @@ fn create_giveaway_core(
     Ok(new_index)
 }
 
-// ============================================================================
-// ERROR CODES
-// ============================================================================
-
 #[error_code]
 pub enum GiveawayError {
     #[msg("Giveaway has already drawn winners")]
@@ -1084,17 +983,11 @@ pub enum GiveawayError {
     InvalidFeeTransferTo,
 }
 
-// ============================================================================
 // TREASURY AND KEEPER ADDRESSES
-// ============================================================================
-
 /// The treasury address that receives platform fees.
-///
 /// This is a publicly verifiable address. Replace with your own treasury.
 pub const TREASURY_PUBKEY: Pubkey = pubkey!("AoUY8D1M3X7fbgHy4XpgXqhpVSnLKgwfjnrC1ByAFXHU");
 
 /// The keeper address authorized to call `reveal_draw`.
-///
-/// This is the only address that can reveal giveaways, ensuring that
-/// the reveal is automatic and cannot be blocked by the organizer.
+/// This is a publicly verifiable address. Replace with your own keeper.
 pub const KEEPER_PUBKEY: Pubkey = pubkey!("HLxD5xGPBGv5X7nhK2agHvsP7Yu7tGmnPLmLdS8PcAqy");

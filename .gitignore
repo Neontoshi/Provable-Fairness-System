@@ -1,0 +1,37 @@
+# Rust build artifacts
+/target/
+**/target/
+*.rs.bk
+*.rlib
+*.prof*
+*.pdb
+
+# Cargo
+Cargo.lock
+**/Cargo.lock
+
+# ANCHOR
+
+# Anchor build artifacts
+/.anchor/
+**/.anchor/
+*.so
+*.debug
+
+# SOLANA
+*.json
+*.key
+*.pubkey
+*wallet*.json
+*keypair*.json
+
+# Local validator
+/test-ledger/
+**/test-ledger/
+*.ledger/
+validator.log
+*.log
+
+# Program deployment
+/program-deploy/
+**/program-deploy/
