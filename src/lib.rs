@@ -21,7 +21,6 @@
 //!   32-byte root
 //! - Winner Merkle Tree: Commits to the winner list for verification
 //!
-//! ## Usage
 //!
 //! This library is designed to be embedded in Solana programs using Anchor.
 //! See the `giveaway` module for the complete program implementation.
